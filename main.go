@@ -100,10 +100,43 @@ func (app *App) shortenUrl(writer http.ResponseWriter, request *http.Request) {
 	writer.Write([]byte(fmt.Sprintf("%s was shortened to %s", longUrl, shortUrl)))
 }
 
+func (app *App) getURL(writer http.ResponseWriter, request *http.Request) {
+	request.ParseForm()
+
+	url := request.FormValue("url")
+	if url == "" {
+		http.Error(writer, "URL was not provided or not able to be retrieved from the request.", http.StatusBadRequest)
+		return
+	}
+
+	fmt.Println("looking for a long URL for", url)
+	row := app.db.QueryRow("SELECT short, long FROM urls WHERE short = $1", url)
+	shortener := new(URLShortener)
+	err := row.Scan(&shortener.short, &shortener.long)
+	if err == sql.ErrNoRows {
+		fmt.Println("could not find a long URL for", url)
+		http.NotFound(writer, request)
+		return
+	} 
+	if err != nil {
+		fmt.Printf("something went wrong looking up a long URL for %s: %v\n", url, err)
+		http.Error(
+			writer,
+			fmt.Sprintf("something went wrong looking up a long URL for %s: %v\n", url, err),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	fmt.Printf("found a long URL (%s) for %s\n", shortener.long, shortener.long)
+	http.Redirect(writer, request, shortener.long, http.StatusMovedPermanently)
+}
+
 func main() {
 
 	app := newApp()
 
 	http.HandleFunc("/", app.shortenUrl)
+	http.HandleFunc("/get", app.getURL)
 	http.ListenAndServe(":8080", nil)
 }
