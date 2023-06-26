@@ -6,8 +6,8 @@ It's not meant to be a project that you would base anything one.
 
 ## Getting Started
 
-To get started, after cloning the codebase, create a new file in the data directory, named database.sqlite3.
-Then, through whatever database tool you prefer to use, run the following query:
+To get started, after cloning the codebase, create a new file in the _data_ directory, named _database.sqlite3_.
+Then, through whatever database tool you prefer to use, such as [the SQLite command line shell](https://www.sqlite.org/cli.html), run the following query:
 
 ```sql
 PRAGMA foreign_keys=OFF;
