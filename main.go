@@ -3,12 +3,16 @@ package main
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 	"net/url"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 // uniqid returns a unique id string useful when generating random strings.
@@ -46,12 +50,24 @@ func ShortenURL() string {
 	return encodedString[0:9]
 }
 
-type App struct {
+type URLShortener struct {
+	long, short string
+}
 
+type App struct {
+	db *sql.DB
 }
 
 func newApp() App {
-	return App{}
+	db, err := sql.Open("sqlite", "data/database.sqlite3")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err = db.Ping(); err != nil {
+		log.Fatal(err)
+	}
+
+	return App{db: db}
 }
 
 func (app *App) shortenUrl(writer http.ResponseWriter, request *http.Request) {
@@ -59,28 +75,33 @@ func (app *App) shortenUrl(writer http.ResponseWriter, request *http.Request) {
 
 	longUrl := request.FormValue("url")
 	if longUrl == "" {
-		writer.WriteHeader(400)
-		writer.Write([]byte("URL was not provided or not able to be retrieved from the request."))
+		http.Error(writer, "URL was not provided or not able to be retrieved from the request.", http.StatusBadRequest)
 		return
 	}
 
-	// validate the URL
 	parsedURL, err := url.Parse(longUrl)
 	if err != nil {
-		writer.WriteHeader(400)
-		writer.Write([]byte("URL was not valid."))
+		http.Error(writer, fmt.Sprintf("URL was not valid: %s", err), http.StatusBadRequest)
 		return
 	}
-	shortUrl := ShortenURL()
-	writer.Write([]byte(fmt.Sprintf(
-		"%s was shortened to %s://%s", 
-		longUrl, 
-		parsedURL.Scheme, 
-		shortUrl,
-	)))
+	shortUrl := fmt.Sprintf("%s://%s", parsedURL.Scheme, ShortenURL())
+
+	result, err := app.db.Exec("INSERT INTO urls(short, long) VALUES($1, $2)", shortUrl, longUrl)
+	if err != nil {
+		http.Error(writer, http.StatusText(500), 500)
+		return
+	}
+	_, err = result.RowsAffected()
+	if err != nil {
+		http.Error(writer, http.StatusText(500), 500)
+		return
+	}
+
+	writer.Write([]byte(fmt.Sprintf("%s was shortened to %s", longUrl, shortUrl)))
 }
 
 func main() {
+
 	app := newApp()
 
 	http.HandleFunc("/", app.shortenUrl)
