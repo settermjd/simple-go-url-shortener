@@ -26,8 +26,15 @@ func uniqid(prefix string) string {
 	return fmt.Sprintf("%s%08x%05x", prefix, sec, usec)
 }
 
-// ShortenURL generates and returns a short URL string.
-func ShortenURL() string {
+type Shortener interface {
+	Shorten() string
+}
+
+type URLShortener struct {
+	long, short string
+}
+
+func (s *URLShortener) Shorten() string {
 	var (
 		randomChars   = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0987654321")
 		randIntLength = 27
@@ -51,12 +58,9 @@ func ShortenURL() string {
 	return encodedString[0:9]
 }
 
-type URLShortener struct {
-	long, short string
-}
-
 type App struct {
-	db *sql.DB
+	db        *sql.DB
+	shortener Shortener
 }
 
 func newApp() App {
