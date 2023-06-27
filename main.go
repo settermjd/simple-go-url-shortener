@@ -63,8 +63,18 @@ type App struct {
 	shortener Shortener
 }
 
-func newApp() App {
-	db, err := sql.Open("sqlite", "data/database.sqlite3")
+func hasQueryParameterMiddleware(next http.Handler, parameter string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get(parameter) == "" {
+			http.Error(w, fmt.Sprintf("Query parameter [%s] not available.", parameter), 400)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func newApp(dbFile string) App {
+	db, err := sql.Open("sqlite", dbFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -79,11 +89,6 @@ func (app *App) shortenUrl(writer http.ResponseWriter, request *http.Request) {
 	request.ParseForm()
 
 	longUrl := request.FormValue("url")
-	if longUrl == "" {
-		http.Error(writer, "URL was not provided or not able to be retrieved from the request.", http.StatusBadRequest)
-		return
-	}
-
 	if !govalidator.IsURL(longUrl) {
 		http.Error(writer, fmt.Sprintf("URL [%s] was not valid.", longUrl), http.StatusBadRequest)
 		return
@@ -110,31 +115,14 @@ func (app *App) shortenUrl(writer http.ResponseWriter, request *http.Request) {
 	writer.Write([]byte(fmt.Sprintf("%s was shortened to %s", longUrl, shortUrl)))
 }
 
-func hasQueryParameterMiddleware(next http.Handler, parameter string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get(parameter) == "" {
-			http.Error(w, fmt.Sprintf("Query parameter [%s] not available.", parameter), 400)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 func (app *App) getURL(writer http.ResponseWriter, request *http.Request) {
 	request.ParseForm()
 
 	url := request.FormValue("url")
-	if url == "" {
-		http.Error(writer, "URL was not provided or not able to be retrieved from the request.", http.StatusBadRequest)
-		return
-	}
-
-	fmt.Println("looking for a long URL for", url)
-	row := app.db.QueryRow("SELECT short, long FROM urls WHERE short = $1", url)
+	row := app.db.QueryRow("SELECT short, long FROM urls WHERE short = ?", url)
 	shortener := new(URLShortener)
 	err := row.Scan(&shortener.short, &shortener.long)
 	if err == sql.ErrNoRows {
-		fmt.Println("could not find a long URL for", url)
 		http.NotFound(writer, request)
 		return
 	}
@@ -147,14 +135,13 @@ func (app *App) getURL(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	fmt.Printf("found a long URL (%s) for %s\n", shortener.long, shortener.long)
 	http.Redirect(writer, request, shortener.long, http.StatusMovedPermanently)
 }
 
 func main() {
-	app := newApp()
+	app := newApp("data/database.sqlite3")
 
-	http.Handle("/", hasQueryParameterMiddleware(http.HandlerFunc(app.shortenUrl), "url",))
+	http.Handle("/", hasQueryParameterMiddleware(http.HandlerFunc(app.shortenUrl), "url"))
 	http.Handle("/get", hasQueryParameterMiddleware(http.HandlerFunc(app.getURL), "url"))
 
 	http.ListenAndServe(":8080", nil)
