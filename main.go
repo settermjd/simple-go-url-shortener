@@ -106,6 +106,16 @@ func (app *App) shortenUrl(writer http.ResponseWriter, request *http.Request) {
 	writer.Write([]byte(fmt.Sprintf("%s was shortened to %s", longUrl, shortUrl)))
 }
 
+func hasQueryParameterMiddleware(next http.Handler, parameter string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get(parameter) == "" {
+			http.Error(w, fmt.Sprintf("Query parameter [%s] not available.", parameter), 400)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (app *App) getURL(writer http.ResponseWriter, request *http.Request) {
 	request.ParseForm()
 
@@ -138,10 +148,10 @@ func (app *App) getURL(writer http.ResponseWriter, request *http.Request) {
 }
 
 func main() {
-
 	app := newApp()
 
-	http.HandleFunc("/", app.shortenUrl)
-	http.HandleFunc("/get", app.getURL)
+	http.Handle("/", hasQueryParameterMiddleware(http.HandlerFunc(app.shortenUrl), "url",))
+	http.Handle("/get", hasQueryParameterMiddleware(http.HandlerFunc(app.getURL), "url"))
+
 	http.ListenAndServe(":8080", nil)
 }
