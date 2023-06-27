@@ -81,19 +81,19 @@ func (app *App) shortenUrl(writer http.ResponseWriter, request *http.Request) {
 
 	parsedURL, err := url.Parse(longUrl)
 	if err != nil {
-		http.Error(writer, fmt.Sprintf("URL was not valid: %s", err), http.StatusBadRequest)
+		http.Error(writer, fmt.Sprintf("URL [%s] was not valid: %v", longUrl, err), http.StatusBadRequest)
 		return
 	}
-	shortUrl := fmt.Sprintf("%s://%s", parsedURL.Scheme, ShortenURL())
+	shortUrl := fmt.Sprintf("%s://%s", parsedURL.Scheme, app.shortener.Shorten())
 
-	result, err := app.db.Exec("INSERT INTO urls(short, long) VALUES($1, $2)", shortUrl, longUrl)
+	result, err := app.db.Exec("INSERT INTO urls(short, long) VALUES(?, ?)", shortUrl, longUrl)
 	if err != nil {
-		http.Error(writer, http.StatusText(500), 500)
+		http.Error(writer, fmt.Sprintf("could not insert shortened URL: %v", err), 500)
 		return
 	}
 	_, err = result.RowsAffected()
 	if err != nil {
-		http.Error(writer, http.StatusText(500), 500)
+		http.Error(writer, fmt.Sprintf("could not insert shortened URL: %v", err), 500)
 		return
 	}
 
@@ -117,9 +117,8 @@ func (app *App) getURL(writer http.ResponseWriter, request *http.Request) {
 		fmt.Println("could not find a long URL for", url)
 		http.NotFound(writer, request)
 		return
-	} 
+	}
 	if err != nil {
-		fmt.Printf("something went wrong looking up a long URL for %s: %v\n", url, err)
 		http.Error(
 			writer,
 			fmt.Sprintf("something went wrong looking up a long URL for %s: %v\n", url, err),
