@@ -70,4 +70,21 @@ func TestShortenUrl(t *testing.T) {
 			t.Errorf("received: %q, expected: %q", got, expected)
 		}
 	})
+
+	t.Run("can handle the required parameter not being present", func(t *testing.T) {
+		param := "url"
+		handlerToTest := hasQueryParameterMiddleware(
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), 
+			param,
+		)
+		req := httptest.NewRequest("GET", "/", nil)
+		res := httptest.NewRecorder()
+		handlerToTest.ServeHTTP(res, req)
+		got := res.Body.String()
+		expected := fmt.Sprintf("Query parameter [%s] not available.\n", param)
+
+		if got != expected {
+			t.Errorf("received: %q, expected: %q", got, expected)
+		}
+	})
 }
