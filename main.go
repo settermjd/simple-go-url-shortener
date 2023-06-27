@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/asaskevich/govalidator"
 	_ "modernc.org/sqlite"
 )
 
@@ -76,6 +77,11 @@ func (app *App) shortenUrl(writer http.ResponseWriter, request *http.Request) {
 	longUrl := request.FormValue("url")
 	if longUrl == "" {
 		http.Error(writer, "URL was not provided or not able to be retrieved from the request.", http.StatusBadRequest)
+		return
+	}
+
+	if !govalidator.IsURL(longUrl) {
+		http.Error(writer, fmt.Sprintf("URL [%s] was not valid.", longUrl), http.StatusBadRequest)
 		return
 	}
 
