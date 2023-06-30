@@ -2,7 +2,7 @@
 
 This is a small example application that shows how to build a rather rudimentary URL shortener in Go. 
 It also forms the basis for an upcoming [Twilio tutorial](https://www.twilio.com/blog/author/msetter) that I'm writing.
-It's not meant to be a project that you would base anything one.
+It's not meant to be a project that you would base anything on.
 
 ## Getting Started
 
